@@ -155,3 +155,94 @@ async def addclass(interaction: discord.Interaction, crn: str) -> None:
             ],
         )
     )
+
+@bot.tree.command(description="Edit meeting days and time for a class already in your schedule.")
+async def editclass(
+    interaction: discord.Interaction,
+    crn: str,
+    days: str,
+    start_time: str,
+    end_time: str,
+    location: str = "",
+) -> None:
+    updated = schedule_service.edit_class(
+        interaction.user.id,
+        crn,
+        days,
+        start_time,
+        end_time,
+        location,
+    )
+    if updated is None:
+        await interaction.response.send_message(text_block("Edit class", [f"CRN {crn} is not currently in your schedule."]))
+        return
+    await interaction.response.send_message(
+        text_block(
+            "Class updated",
+            [
+                f"CRN: {updated.crn}",
+                f"Days: {updated.days}",
+                f"Time: {updated.start_time}-{updated.end_time}",
+                f"Location: {updated.location or '-'}",
+            ],
+        )
+    )
+
+
+@bot.tree.command(description="Remove a class from your schedule.")
+async def removeclass(interaction: discord.Interaction, crn: str) -> None:
+    removed = db.remove_class(interaction.user.id, crn)
+    message = f"CRN {crn} was removed from your schedule." if removed else f"CRN {crn} is not currently listed in your schedule."
+    await interaction.response.send_message(text_block("Remove class", [message]))
+
+
+@bot.tree.command(description="View your saved schedule.")
+async def myschedule(interaction: discord.Interaction) -> None:
+    profile_data = db.get_profile(interaction.user.id)
+    privacy = profile_data.privacy if profile_data else "friends"
+    classes = db.list_classes(interaction.user.id)
+    await interaction.response.send_message(format_schedule(interaction.user.display_name, classes, privacy))
+
+
+@bot.tree.command(description="View another user's schedule if their privacy settings allow it.")
+async def schedule(interaction: discord.Interaction, user: discord.Member) -> None:
+    if not privacy_service.can_view_schedule(user.id, interaction.user.id):
+        await interaction.response.send_message(text_block("Schedule", ["Not permitted."]))
+        return
+    profile_data = db.get_profile(user.id)
+    privacy = profile_data.privacy if profile_data else "friends"
+    classes = db.list_classes(user.id)
+    await interaction.response.send_message(format_schedule(user.display_name, classes, privacy))
+
+
+@bot.tree.command(description="Change your schedule privacy setting.")
+async def privacy(interaction: discord.Interaction, setting: app_commands.Transform[str, PrivacyTransformer]) -> None:
+    db.set_privacy(interaction.user.id, setting)
+    await interaction.response.send_message(text_block("Privacy updated", [f"New setting: {setting}"]))
+
+
+@bot.tree.command(description="Add a user to your schedule friends list.")
+async def addfriend(interaction: discord.Interaction, user: discord.Member) -> None:
+    if user.id == interaction.user.id:
+        await interaction.response.send_message(text_block("Friends", ["You do not need to add yourself."]))
+        return
+    db.add_friend(interaction.user.id, user.id)
+    await interaction.response.send_message(text_block("Friends", [f"{user.display_name} can now view your schedule when privacy is set to friends."]))
+
+
+@bot.tree.command(description="Remove a user from your schedule friends list.")
+async def removefriend(interaction: discord.Interaction, user: discord.Member) -> None:
+    db.remove_friend(interaction.user.id, user.id)
+    await interaction.response.send_message(text_block("Friends", [f"{user.display_name} was removed from your schedule friends list."]))
+
+#
+@bot.tree.command(description="Compute overlapping free time for up to three users.")
+@app_commands.describe(
+    user1="First user",
+    user2="Second user",
+    user3="Third user",
+    start_time="24-hour HH:MM, default 09:00",
+    end_time="24-hour HH:MM, default 18:00",
+    weekdays_only="True to check Monday-Friday only",
+    include_me="Include your own schedule in the overlap",
+)
