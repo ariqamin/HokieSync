@@ -79,3 +79,79 @@ class PrivacyTransformer(app_commands.Transformer):
         if lowered not in VALID_PRIVACY:
             raise app_commands.AppCommandError("Privacy must be one of: public, friends, private.")
         return lowered
+
+
+@bot.event
+async def on_ready() -> None:
+    LOGGER.info("Logged in as %s", bot.user)
+    if settings.guild_id:
+        guild = discord.Object(id=settings.guild_id)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        LOGGER.info("Synced %s guild command(s)", len(synced))
+    else:
+        synced = await bot.tree.sync()
+        LOGGER.info("Synced %s global command(s)", len(synced))
+
+    if not watch_poll_loop.is_running():
+        watch_poll_loop.start()
+
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+    message = str(error)
+    if not interaction.response.is_done():
+        await interaction.response.send_message(text_block("Error", [message]), ephemeral=True)
+    else:
+        await interaction.followup.send(text_block("Error", [message]), ephemeral=True)
+
+
+@bot.tree.command(description="Create or update your academic profile.")
+@app_commands.describe(major="Example: CS", school="Example: Virginia Tech", term="Example: Fall 2026")
+async def profile(interaction: discord.Interaction, major: str, school: str, term: str) -> None:
+    db.upsert_profile(interaction.user.id, major.strip(), school.strip(), term.strip())
+    await interaction.response.send_message(
+        text_block(
+            "Profile saved",
+            [
+                f"Major: {major.strip()}",
+                f"School: {school.strip()}",
+                f"Term: {term.strip()}",
+            ],
+        )
+    )
+
+
+@bot.tree.command(description="Add a class to your profile by CRN using the catalog source.")
+@app_commands.describe(crn="Course reference number")
+async def addclass(interaction: discord.Interaction, crn: str) -> None:
+    config = server_config(interaction.guild_id)
+    if not config["enable_catalog"]:
+        await interaction.response.send_message(text_block("Add class", ["Catalog source is disabled by admin settings."]))
+        return
+
+    if db.get_class(interaction.user.id, crn):
+        await interaction.response.send_message(text_block("Add class", [f"CRN {crn} is already in your schedule."]))
+        return
+
+    course = await provider.get_course_by_crn(crn)
+    if course is None:
+        await interaction.response.send_message(text_block("Add class", [f"CRN {crn} is invalid or unavailable."]))
+        return
+
+    entry = build_entry_from_course(interaction.user.id, course)
+    schedule_service.add_or_replace_class(entry)
+    await interaction.response.send_message(
+        text_block(
+            "Class added successfully",
+            [
+                f"CRN: {entry.crn}",
+                f"Course: {entry.course_code} - {entry.course_title}",
+                f"Instructor: {entry.instructor}",
+                f"Days: {entry.days}",
+                f"Time: {entry.start_time}-{entry.end_time}",
+                f"Location: {entry.location or '-'}",
+                "Use /myschedule to view your saved timetable.",
+            ],
+        )
+    )
