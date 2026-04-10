@@ -319,3 +319,104 @@ async def config(
             ],
         )
     )
+
+@bot.tree.command(description="Admin command to view bot health and last refresh state.")
+@app_commands.checks.has_permissions(administrator=True)
+async def status(interaction: discord.Interaction) -> None:
+    config = server_config(interaction.guild_id)
+    lines = [
+        "Health: operational",
+        f"Catalog source enabled: {'yes' if config['enable_catalog'] else 'no'}",
+        f"Polling interval: {config['poll_interval_seconds']} seconds",
+        f"Catalog refresh: {config['last_catalog_refresh']}",
+        f"Last error: {config['last_error']}",
+    ]
+    await interaction.response.send_message(format_status(lines))
+
+
+@bot.tree.command(description="Admin helper to simulate seat openings in the mock catalog.")
+@app_commands.checks.has_permissions(administrator=True)
+async def simulateseats(interaction: discord.Interaction, crn: str, open_seats: app_commands.Range[int, 0, 999]) -> None:
+    updated = await provider.set_open_seats(crn, open_seats)
+    if not updated:
+        await interaction.response.send_message(text_block("Simulate seats", [f"CRN {crn} was not found in the mock catalog."]))
+        return
+    await interaction.response.send_message(text_block("Simulate seats", [f"CRN {crn} now has {open_seats} open seats in the mock catalog."]))
+
+
+@bot.tree.command(name="help", description="Show the bot commands and what they do.")
+async def helpbot(interaction: discord.Interaction) -> None:
+    await interaction.response.send_message(
+        text_block(
+            "KIT bot help",
+            [
+                "/profile major school term - create or update your profile",
+                "/addclass crn - add a class by CRN",
+                "/editclass - edit the saved days and times for a class",
+                "/removeclass crn - delete a class",
+                "/myschedule - view your own schedule",
+                "/schedule @user - view someone else's schedule if permitted",
+                "/privacy public|friends|private - change who can see your schedule",
+                "/addfriend and /removefriend - manage your friends-only list",
+                "/free - compute mutual free time across users",
+                "/watchclass crn and /unwatchclass crn - manage class alerts",
+                "/config, /status, /simulateseats - admin commands",
+            ],
+        )
+    )
+
+# Chatgpt was used to write most of the logic for this code
+@tasks.loop(seconds=settings.poll_interval_seconds)
+async def watch_poll_loop() -> None:
+    await bot.wait_until_ready()
+    watches = db.list_watches()
+    guild_id = settings.guild_id or next((guild.id for guild in bot.guilds), None)
+    config = server_config(guild_id)
+    watch_poll_loop.change_interval(seconds=int(config["poll_interval_seconds"]))
+
+    try:
+        await provider.refresh()
+        if guild_id is not None:
+            db.update_server_config(
+                guild_id,
+                last_catalog_refresh="Success",
+                last_error="None",
+            )
+
+        for watch in watches:
+            crn = watch["crn"]
+            open_seats = await provider.get_open_seats(crn)
+            if open_seats is None:
+                continue
+            notified_open = int(watch["notified_open"])
+            last_known = int(watch["last_known_open_seats"])
+            if open_seats > 0 and (notified_open == 0 or last_known == 0):
+                dm_ok = await safe_send_dm(
+                    int(watch["user_id"]),
+                    text_block(
+                        "Seat alert",
+                        [
+                            f"CRN {crn} now has {open_seats} open seat(s).",
+                            "Use your registration portal quickly if you want the seat.",
+                        ],
+                    ),
+                )
+                db.update_watch_state(int(watch["user_id"]), crn, open_seats, 1 if dm_ok else notified_open)
+            elif open_seats == 0:
+                db.update_watch_state(int(watch["user_id"]), crn, 0, 0)
+            else:
+                db.update_watch_state(int(watch["user_id"]), crn, open_seats, notified_open)
+    except Exception as exc:
+        LOGGER.exception("Watch poll failed: %s", exc)
+        if guild_id is not None:
+            db.update_server_config(guild_id, last_error=str(exc))
+
+
+def main() -> None:
+    if not settings.discord_token:
+        raise RuntimeError("DISCORD_TOKEN is missing. Copy .env.example to .env and fill it in first.")
+    bot.run(settings.discord_token)
+
+
+if __name__ == "__main__":
+    main()
