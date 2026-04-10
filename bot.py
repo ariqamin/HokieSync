@@ -246,3 +246,76 @@ async def removefriend(interaction: discord.Interaction, user: discord.Member) -
     weekdays_only="True to check Monday-Friday only",
     include_me="Include your own schedule in the overlap",
 )
+async def free(
+    interaction: discord.Interaction,
+    user1: discord.Member,
+    user2: discord.Member | None = None,
+    user3: discord.Member | None = None,
+    start_time: str = "09:00",
+    end_time: str = "18:00",
+    weekdays_only: bool = True,
+    include_me: bool = True,
+) -> None:
+    requested_users = [member for member in [user1, user2, user3] if member is not None]
+    if include_me and all(member.id != interaction.user.id for member in requested_users):
+        requested_users.insert(0, interaction.user)
+
+    accessible_ids: list[int] = []
+    excluded: list[str] = []
+    for member in requested_users:
+        if not privacy_service.can_view_schedule(member.id, interaction.user.id):
+            excluded.append(f"{member.display_name}: not permitted")
+            continue
+        if not db.list_classes(member.id):
+            excluded.append(f"{member.display_name}: no saved schedule")
+            continue
+        accessible_ids.append(member.id)
+
+    if not accessible_ids:
+        await interaction.response.send_message(text_block("Shared free time", ["No accessible schedules were available."]))
+        return
+
+    windows = free_time_service.compute(accessible_ids, start_time, end_time, weekdays_only)
+    names = ", ".join(member.display_name for member in requested_users if member.id in accessible_ids)
+    await interaction.response.send_message(format_free_time(f"Shared free time for {names}", windows, excluded))
+
+
+@bot.tree.command(description="Watch a class and get a DM when a seat opens.")
+async def watchclass(interaction: discord.Interaction, crn: str) -> None:
+    success, message = await watch_service.add_watch(interaction.user.id, crn)
+    await interaction.response.send_message(text_block("Watch class", [message]))
+    if success:
+        await safe_send_dm(interaction.user.id, text_block("Watch started", [message]))
+
+
+@bot.tree.command(description="Remove a class from your watchlist.")
+async def unwatchclass(interaction: discord.Interaction, crn: str) -> None:
+    _, message = watch_service.remove_watch(interaction.user.id, crn)
+    await interaction.response.send_message(text_block("Unwatch class", [message]))
+
+
+@bot.tree.command(description="Admin command to configure catalog access and polling.")
+@app_commands.checks.has_permissions(administrator=True)
+async def config(
+    interaction: discord.Interaction,
+    enable_catalog: bool = True,
+    poll_interval_seconds: app_commands.Range[int, 15, 3600] = 60,
+) -> None:
+    if interaction.guild_id is None:
+        await interaction.response.send_message(text_block("Config", ["This command must be used in a server."]))
+        return
+    db.update_server_config(
+        interaction.guild_id,
+        enable_catalog=int(enable_catalog),
+        poll_interval_seconds=int(poll_interval_seconds),
+    )
+    watch_poll_loop.change_interval(seconds=poll_interval_seconds)
+    await interaction.response.send_message(
+        text_block(
+            "Config updated",
+            [
+                f"Catalog source: {'on' if enable_catalog else 'off'}",
+                f"Polling interval: {poll_interval_seconds} seconds",
+            ],
+        )
+    )
