@@ -87,7 +87,7 @@ class PrivacyTransformer(app_commands.Transformer):
 
         if lowered not in VALID_PRIVACY:
             raise app_commands.AppCommandError(
-                "Privacy must be one of: public, friends, private."
+                "Privacy must be one of: public, friends, private"
             )
 
         return lowered
@@ -130,7 +130,7 @@ async def on_app_command_error(
     )
 
 
-@bot.tree.command(description="Create or update your academic profile.")
+@bot.tree.command(description="Create or update your academic profile")
 @app_commands.describe(
     major="Example: CS",
     school="Example: Virginia Tech",
@@ -160,7 +160,7 @@ async def profile(interaction: discord.Interaction, major: str, school: str, ter
     )
 
 
-@bot.tree.command(description="Add a class to your profile by CRN using the catalog source.")
+@bot.tree.command(description="Add a class to your profile by CRN using the catalog source")
 @app_commands.describe(crn="Course reference number")
 async def addclass(interaction: discord.Interaction, crn: str):
     config = server_config(interaction.guild_id)
@@ -169,7 +169,7 @@ async def addclass(interaction: discord.Interaction, crn: str):
         await interaction.response.send_message(
             text_block(
                 "Add class",
-                ["Catalog source is disabled by admin settings."],
+                ["Catalog source is disabled by admin settings"],
             )
         )
         return
@@ -179,7 +179,7 @@ async def addclass(interaction: discord.Interaction, crn: str):
         await interaction.response.send_message(
             text_block(
                 "Add class",
-                [f"CRN {crn} is already in your schedule."],
+                [f"CRN {crn} is already in your schedule"],
             )
         )
         return
@@ -189,7 +189,7 @@ async def addclass(interaction: discord.Interaction, crn: str):
         await interaction.response.send_message(
             text_block(
                 "Add class",
-                [f"CRN {crn} is invalid or unavailable."],
+                [f"CRN {crn} is invalid or unavailable"],
             )
         )
         return
@@ -213,7 +213,7 @@ async def addclass(interaction: discord.Interaction, crn: str):
     )
 
 
-@bot.tree.command(description="Edit meeting days and time for a class already in your schedule.")
+@bot.tree.command(description="Edit meeting days and time for a class already in your schedule")
 async def editclass(
     interaction: discord.Interaction,
     crn: str,
@@ -235,7 +235,7 @@ async def editclass(
         await interaction.response.send_message(
             text_block(
                 "Edit class",
-                [f"CRN {crn} is not currently in your schedule."],
+                [f"CRN {crn} is not currently in your schedule"],
             )
         )
         return
@@ -253,21 +253,21 @@ async def editclass(
     )
 
 
-@bot.tree.command(description="Remove a class from your schedule.")
+@bot.tree.command(description="Remove a class from your schedule")
 async def removeclass(interaction: discord.Interaction, crn: str):
     removed = db.remove_class(interaction.user.id, crn)
 
     if removed:
-        message = f"CRN {crn} was removed from your schedule."
+        message = f"CRN {crn} was removed from your schedule"
     else:
-        message = f"CRN {crn} is not currently listed in your schedule."
+        message = f"CRN {crn} is not currently listed in your schedule"
 
     await interaction.response.send_message(
         text_block("Remove class", [message])
     )
 
 
-@bot.tree.command(description="View your saved schedule.")
+@bot.tree.command(description="View your saved schedule")
 async def myschedule(interaction: discord.Interaction):
     profile_data = db.get_profile(interaction.user.id)
 
@@ -287,7 +287,7 @@ async def myschedule(interaction: discord.Interaction):
     )
 
 
-@bot.tree.command(description="View another user's schedule if their privacy settings allow it.")
+@bot.tree.command(description="View another user's schedule if their privacy settings allow it")
 async def schedule(interaction: discord.Interaction, user: discord.Member):
     allowed = privacy_service.can_view_schedule(user.id, interaction.user.id)
     if not allowed:
@@ -314,7 +314,7 @@ async def schedule(interaction: discord.Interaction, user: discord.Member):
     )
 
 
-@bot.tree.command(description="Change your schedule privacy setting.")
+@bot.tree.command(description="Change your schedule privacy setting")
 async def privacy(
     interaction: discord.Interaction,
     setting: app_commands.Transform[str, PrivacyTransformer],
@@ -326,7 +326,7 @@ async def privacy(
     )
 
 
-@bot.tree.command(description="Add a user to your schedule friends list.")
+@bot.tree.command(description="Add a user to your schedule friends list")
 async def addfriend(interaction: discord.Interaction, user: discord.Member):
     if user.id == interaction.user.id:
         await interaction.response.send_message(
@@ -349,7 +349,7 @@ async def addfriend(interaction: discord.Interaction, user: discord.Member):
     )
 
 
-@bot.tree.command(description="Remove a user from your schedule friends list.")
+@bot.tree.command(description="Remove a user from your schedule friends list")
 async def removefriend(interaction: discord.Interaction, user: discord.Member):
     db.remove_friend(interaction.user.id, user.id)
 
@@ -361,7 +361,7 @@ async def removefriend(interaction: discord.Interaction, user: discord.Member):
     )
 
 # Chatgpt was used to assist writing the logic for this code
-@bot.tree.command(description="Compute overlapping free time for up to three users.")
+@bot.tree.command(description="Compute overlapping free time for up to three users")
 @app_commands.describe(
     user1="First user",
     user2="Second user",
@@ -418,7 +418,7 @@ async def free(
         await interaction.response.send_message(
             text_block(
                 "Shared free time",
-                ["No accessible schedules were available."],
+                ["No accessible schedules were available"],
             )
         )
         return
@@ -446,7 +446,7 @@ async def free(
     )
 
 
-@bot.tree.command(description="Watch a class and get a DM when a seat opens.")
+@bot.tree.command(description="Watch a class and get a DM when a seat opens")
 async def watchclass(interaction: discord.Interaction, crn: str):
     success, message = await watch_service.add_watch(interaction.user.id, crn)
 
@@ -461,7 +461,7 @@ async def watchclass(interaction: discord.Interaction, crn: str):
         )
 
 
-@bot.tree.command(description="Remove a class from your watchlist.")
+@bot.tree.command(description="Remove a class from your watchlist")
 async def unwatchclass(interaction: discord.Interaction, crn: str):
     _, message = watch_service.remove_watch(interaction.user.id, crn)
 
@@ -470,7 +470,7 @@ async def unwatchclass(interaction: discord.Interaction, crn: str):
     )
 
 
-@bot.tree.command(description="Admin command to configure catalog access and polling.")
+@bot.tree.command(description="Admin command to configure catalog access and polling")
 @app_commands.checks.has_permissions(administrator=True)
 async def config(
     interaction: discord.Interaction,
@@ -479,7 +479,7 @@ async def config(
 ):
     if interaction.guild_id is None:
         await interaction.response.send_message(
-            text_block("Config", ["This command must be used in a server."])
+            text_block("Config", ["This command must be used in a server"])
         )
         return
 
@@ -502,7 +502,7 @@ async def config(
     )
 
 
-@bot.tree.command(description="Admin command to view bot health and last refresh state.")
+@bot.tree.command(description="Admin command to view bot health and last refresh state")
 @app_commands.checks.has_permissions(administrator=True)
 async def status(interaction: discord.Interaction):
     config = server_config(interaction.guild_id)
@@ -518,7 +518,7 @@ async def status(interaction: discord.Interaction):
     await interaction.response.send_message(format_status(lines))
 
 
-@bot.tree.command(description="Admin helper to simulate seat openings in the mock catalog.")
+@bot.tree.command(description="Admin helper to simulate seat openings in the mock catalog")
 @app_commands.checks.has_permissions(administrator=True)
 async def simulateseats(
     interaction: discord.Interaction,
@@ -531,7 +531,7 @@ async def simulateseats(
         await interaction.response.send_message(
             text_block(
                 "Simulate seats",
-                [f"CRN {crn} was not found in the mock catalog."],
+                [f"CRN {crn} was not found in the mock catalog"],
             )
         )
         return
@@ -539,12 +539,12 @@ async def simulateseats(
     await interaction.response.send_message(
         text_block(
             "Simulate seats",
-            [f"CRN {crn} now has {open_seats} open seats in the mock catalog."],
+            [f"CRN {crn} now has {open_seats} open seats in the mock catalog"],
         )
     )
 
 
-@bot.tree.command(name="help", description="Show the bot commands and what they do.")
+@bot.tree.command(name="help", description="Show the bot commands and what they do")
 async def helpbot(interaction: discord.Interaction):
     await interaction.response.send_message(
         text_block(
@@ -613,7 +613,7 @@ async def watch_poll_loop():
                         "Seat alert",
                         [
                             f"CRN {crn} now has {open_seats} open seat(s).",
-                            "Use your registration portal quickly if you want the seat.",
+                            "Use your registration portal quickly if you want the seat",
                         ],
                     ),
                 )
@@ -658,11 +658,6 @@ async def watch_poll_loop():
 
 
 def main():
-    if not settings.discord_token:
-        raise RuntimeError(
-            "DISCORD_TOKEN is missing. Copy .env.example to .env and fill it in first."
-        )
-
     bot.run(settings.discord_token)
 
 
