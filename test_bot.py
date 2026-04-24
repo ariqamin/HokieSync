@@ -279,7 +279,7 @@ class FakeDatabase:
  
 db_mock = _make_module("src.db")
 db_mock.Database = FakeDatabase
-
+ 
 # ---- src.providers.mock_data ----
 class FakeMockDataProvider:
     def __init__(self, *a, **kw):
@@ -443,6 +443,8 @@ def _make_interaction(user_id=1, guild_id=100, display_name="Alice"):
         response=resp,
         followup=types.SimpleNamespace(send=_AsyncSendMock()),
     )
+ 
+ 
 
 # Unit Tests
 class TestBuildEntryFromCourse(unittest.TestCase):
@@ -466,8 +468,9 @@ class TestBuildEntryFromCourse(unittest.TestCase):
         course.days = "tr"
         entry = bot_module.build_entry_from_course(1, course)
         self.assertEqual(entry.days, "TR")
-
- class TestServerConfig(unittest.TestCase):
+ 
+ 
+class TestServerConfig(unittest.TestCase):
     """server_config() is synchronous."""
  
     def test_returns_default_when_guild_is_none(self):
@@ -521,3 +524,105 @@ class TestAddClass(unittest.IsolatedAsyncioTestCase):
         self.assertIn("disabled", msg)
  
         _fake_db.update_server_config(100, enable_catalog=1)
+
+ 
+class TestRemoveClass(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._classes.clear()
+ 
+    async def test_removes_existing_class(self):
+        _fake_db.save_class(bot_module.build_entry_from_course(5, DummyCourse()))
+        interaction = _make_interaction(user_id=5)
+        await bot_module.removeclass(interaction, crn="12345")
+ 
+        self.assertIsNone(_fake_db.get_class(5, "12345"))
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("removed", msg)
+ 
+    async def test_reports_when_class_not_found(self):
+        interaction = _make_interaction(user_id=5)
+        await bot_module.removeclass(interaction, crn="00000")
+ 
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("not currently", msg)
+ 
+ 
+class TestEditClass(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._classes.clear()
+        _fake_db.save_class(bot_module.build_entry_from_course(7, DummyCourse()))
+ 
+    async def test_updates_existing_class(self):
+        interaction = _make_interaction(user_id=7)
+        await bot_module.editclass(
+            interaction, crn="12345", days="MWF",
+            start_time="10:00", end_time="11:00", location="New Hall"
+        )
+        updated = _fake_db.get_class(7, "12345")
+        self.assertEqual(updated.days, "MWF")
+        self.assertEqual(updated.start_time, "10:00")
+        self.assertEqual(updated.location, "New Hall")
+ 
+    async def test_reports_when_class_missing(self):
+        interaction = _make_interaction(user_id=7)
+        await bot_module.editclass(
+            interaction, crn="00000", days="M",
+            start_time="09:00", end_time="10:00"
+        )
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("not currently", msg)
+ 
+ 
+class TestPrivacy(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._profiles.clear()
+        _fake_db._friends.clear()
+ 
+    async def test_sets_privacy(self):
+        _fake_db.upsert_profile(20, "CS", "VT", "Fall 2026")
+        interaction = _make_interaction(user_id=20)
+        await bot_module.privacy(interaction, setting="private")
+        self.assertEqual(_fake_db.get_profile(20).privacy, "private")
+ 
+    def test_public_allows_anyone(self):
+        _fake_db.upsert_profile(21, "CS", "VT", "Fall 2026")
+        _fake_db.set_privacy(21, "public")
+        self.assertTrue(_fake_privacy_svc.can_view_schedule(21, 99))
+ 
+    def test_private_blocks_non_owner(self):
+        _fake_db.upsert_profile(22, "CS", "VT", "Fall 2026")
+        _fake_db.set_privacy(22, "private")
+        self.assertFalse(_fake_privacy_svc.can_view_schedule(22, 99))
+ 
+    def test_friends_only_allows_friend(self):
+        _fake_db.upsert_profile(23, "CS", "VT", "Fall 2026")
+        _fake_db.set_privacy(23, "friends")
+        _fake_db.add_friend(23, 50)
+        self.assertTrue(_fake_privacy_svc.can_view_schedule(23, 50))
+        self.assertFalse(_fake_privacy_svc.can_view_schedule(23, 51))
+ 
+ 
+class TestFriends(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._friends.clear()
+ 
+    async def test_addfriend_adds_friend(self):
+        interaction = _make_interaction(user_id=1)
+        await bot_module.addfriend(interaction, user=_Member(2, "Bob"))
+        self.assertIn(2, _fake_db.get_friends(1))
+ 
+    async def test_addfriend_rejects_self(self):
+        interaction = _make_interaction(user_id=1)
+        await bot_module.addfriend(interaction, user=_Member(1, "Alice"))
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("yourself", msg)
+ 
+    async def test_removefriend_removes_friend(self):
+        _fake_db.add_friend(1, 2)
+        interaction = _make_interaction(user_id=1)
+        await bot_module.removefriend(interaction, user=_Member(2, "Bob"))
+        self.assertNotIn(2, _fake_db.get_friends(1))
