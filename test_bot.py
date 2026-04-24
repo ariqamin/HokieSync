@@ -279,3 +279,190 @@ class FakeDatabase:
  
 db_mock = _make_module("src.db")
 db_mock.Database = FakeDatabase
+
+# ---- src.providers.mock_data ----
+class FakeMockDataProvider:
+    def __init__(self, *a, **kw):
+        self._courses: dict = {}
+        self._seats: dict = {}
+ 
+    async def get_course_by_crn(self, crn, term="", school=""):
+        return self._courses.get(crn)
+ 
+    async def list_courses_for_profile(self, major, school, term):
+        return list(self._courses.values())
+ 
+    async def get_open_seats(self, crn, term=""):
+        return self._seats.get(crn)
+ 
+    async def set_open_seats(self, crn, seats):
+        if crn not in self._courses:
+            return False
+        self._seats[crn] = seats
+        return True
+ 
+    async def refresh(self):
+        pass
+ 
+    def _seed_course(self, course):
+        self._courses[course.crn] = course
+ 
+ 
+providers_pkg = _make_module("src.providers")
+providers_pkg.__path__ = []
+mock_data_mod = _make_module("src.providers.mock_data")
+mock_data_mod.MockDataProvider = FakeMockDataProvider
+ 
+# ---- src.services.* ----
+services_pkg = _make_module("src.services")
+services_pkg.__path__ = []
+for _svc in ("schedule_service", "privacy_service", "free_time_service", "watch_service"):
+    _make_module(f"src.services.{_svc}")
+ 
+ 
+class FakeScheduleService:
+    def __init__(self, db):
+        self.db = db
+ 
+    def add_or_replace_class(self, entry):
+        self.db.save_class(entry)
+ 
+    def edit_class(self, user_id, crn, days, start_time, end_time, location=""):
+        entry = self.db.get_class(user_id, crn)
+        if entry is None:
+            return None
+        updated = ClassEntry(
+            user_id=entry.user_id, crn=entry.crn,
+            course_code=entry.course_code, course_title=entry.course_title,
+            instructor=entry.instructor, days=days,
+            start_time=start_time, end_time=end_time,
+            location=location, source=entry.source,
+        )
+        self.db.save_class(updated)
+        return updated
+ 
+ 
+class FakePrivacyService:
+    def __init__(self, db):
+        self.db = db
+ 
+    def can_view_schedule(self, target_id, viewer_id):
+        if target_id == viewer_id:
+            return True
+        p = self.db.get_profile(target_id)
+        if p is None:
+            return True
+        if p.privacy == "public":
+            return True
+        if p.privacy == "friends":
+            return viewer_id in self.db.get_friends(target_id)
+        return False
+ 
+ 
+class FakeFreeTimeService:
+    def __init__(self, db):
+        self.db = db
+ 
+    def compute(self, user_ids, start_time, end_time, weekdays_only):
+        return []
+ 
+ 
+class FakeWatchService:
+    def __init__(self, db, provider):
+        self.db = db
+        self.provider = provider
+ 
+    async def add_watch(self, user_id, crn):
+        self.db.add_watch(user_id, crn)
+        return True, f"Now watching CRN {crn}"
+ 
+    def remove_watch(self, user_id, crn):
+        self.db.remove_watch(user_id, crn)
+        return True, f"Stopped watching CRN {crn}"
+ 
+ 
+sys.modules["src.services.schedule_service"].ScheduleService = FakeScheduleService
+sys.modules["src.services.privacy_service"].PrivacyService = FakePrivacyService
+sys.modules["src.services.free_time_service"].FreeTimeService = FakeFreeTimeService
+sys.modules["src.services.watch_service"].WatchService = FakeWatchService
+ 
+# ---- src.utils.* ----
+utils_pkg = _make_module("src.utils")
+utils_pkg.__path__ = []
+ 
+formatters_mock = _make_module("src.utils.formatters")
+formatters_mock.format_schedule = lambda name, classes, privacy: f"schedule:{name}"
+formatters_mock.format_free_time = lambda title, windows, excluded: f"free:{title}"
+formatters_mock.format_status = lambda lines: "\n".join(lines)
+formatters_mock.text_block = lambda title, lines: f"[{title}] " + " | ".join(lines)
+ 
+time_utils_mock = _make_module("src.utils.time_utils")
+time_utils_mock.normalize_days = lambda d: d.upper()
+ 
+
+# Import bot after all mocks are in place
+import bot as bot_module  # noqa: E402
+ 
+# Wire fake singletons into the imported module
+_fake_db = FakeDatabase()
+_fake_provider = FakeMockDataProvider()
+_fake_schedule_svc = FakeScheduleService(_fake_db)
+_fake_privacy_svc = FakePrivacyService(_fake_db)
+_fake_free_svc = FakeFreeTimeService(_fake_db)
+_fake_watch_svc = FakeWatchService(_fake_db, _fake_provider)
+ 
+bot_module.db = _fake_db
+bot_module.provider = _fake_provider
+bot_module.schedule_service = _fake_schedule_svc
+bot_module.privacy_service = _fake_privacy_svc
+bot_module.free_time_service = _fake_free_svc
+bot_module.watch_service = _fake_watch_svc
+ 
+
+# Shared fixtures
+class DummyCourse:
+    crn = "12345"
+    course_code = "CS3704"
+    title = "Intermediate Software Design and Engineering"
+    instructor = "Minhyuk Ko"
+    days = "TR"
+    start_time = "17:00"
+    end_time = "18:15"
+    location = "Room 104A"
+ 
+ 
+def _make_interaction(user_id=1, guild_id=100, display_name="Alice"):
+    member = _Member(user_id, display_name)
+    resp = types.SimpleNamespace(
+        is_done=lambda: False,
+        send_message=_AsyncSendMock(),
+    )
+    return types.SimpleNamespace(
+        user=member,
+        guild_id=guild_id,
+        response=resp,
+        followup=types.SimpleNamespace(send=_AsyncSendMock()),
+    )
+
+# Unit Tests
+class TestBuildEntryFromCourse(unittest.TestCase):
+    """build_entry_from_course is synchronous."""
+ 
+    def test_fields_copied_correctly(self):
+        entry = bot_module.build_entry_from_course(42, DummyCourse())
+        self.assertEqual(entry.user_id, 42)
+        self.assertEqual(entry.crn, "12345")
+        self.assertEqual(entry.course_code, "CS3704")
+        self.assertEqual(entry.course_title,
+                         "Intermediate Software Design and Engineering")
+        self.assertEqual(entry.instructor, "Minhyuk Ko")
+        self.assertEqual(entry.start_time, "17:00")
+        self.assertEqual(entry.end_time, "18:15")
+        self.assertEqual(entry.location, "Room 104A")
+        self.assertEqual(entry.source, "catalog")
+ 
+    def test_days_are_normalised(self):
+        course = DummyCourse()
+        course.days = "tr"
+        entry = bot_module.build_entry_from_course(1, course)
+        self.assertEqual(entry.days, "TR")
