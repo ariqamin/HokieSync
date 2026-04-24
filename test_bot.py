@@ -466,3 +466,58 @@ class TestBuildEntryFromCourse(unittest.TestCase):
         course.days = "tr"
         entry = bot_module.build_entry_from_course(1, course)
         self.assertEqual(entry.days, "TR")
+
+ class TestServerConfig(unittest.TestCase):
+    """server_config() is synchronous."""
+ 
+    def test_returns_default_when_guild_is_none(self):
+        cfg = bot_module.server_config(None)
+        self.assertIn("enable_catalog", cfg)
+        self.assertIn("poll_interval_seconds", cfg)
+ 
+    def test_returns_db_config_for_guild(self):
+        _fake_db.update_server_config(999, enable_catalog=0)
+        cfg = bot_module.server_config(999)
+        self.assertEqual(cfg["enable_catalog"], 0)
+ 
+ 
+class TestAddClass(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._classes.clear()
+        _fake_provider._courses.clear()
+ 
+    async def test_adds_valid_course(self):
+        _fake_provider._seed_course(DummyCourse())
+        interaction = _make_interaction(user_id=10)
+        await bot_module.addclass(interaction, crn="12345")
+ 
+        saved = _fake_db.get_class(10, "12345")
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved.course_code, "CS3704")
+ 
+    async def test_rejects_duplicate_crn(self):
+        _fake_provider._seed_course(DummyCourse())
+        interaction = _make_interaction(user_id=10)
+        await bot_module.addclass(interaction, crn="12345")
+        await bot_module.addclass(interaction, crn="12345")
+ 
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("already", msg)
+ 
+    async def test_rejects_unknown_crn(self):
+        interaction = _make_interaction(user_id=10)
+        await bot_module.addclass(interaction, crn="99999")
+ 
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("invalid", msg)
+ 
+    async def test_rejects_when_catalog_disabled(self):
+        _fake_db.update_server_config(100, enable_catalog=0)
+        interaction = _make_interaction(user_id=10, guild_id=100)
+        await bot_module.addclass(interaction, crn="12345")
+ 
+        msg = interaction.response.send_message.calls[-1][0][0]
+        self.assertIn("disabled", msg)
+ 
+        _fake_db.update_server_config(100, enable_catalog=1)
