@@ -626,3 +626,97 @@ class TestFriends(unittest.IsolatedAsyncioTestCase):
         interaction = _make_interaction(user_id=1)
         await bot_module.removefriend(interaction, user=_Member(2, "Bob"))
         self.assertNotIn(2, _fake_db.get_friends(1))
+
+ class TestProfile(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._profiles.clear()
+ 
+    async def test_saves_profile(self):
+        interaction = _make_interaction(user_id=30)
+        await bot_module.profile(
+            interaction, major="CS", school="Virginia Tech", term="Fall 2026"
+        )
+        p = _fake_db.get_profile(30)
+        self.assertIsNotNone(p)
+        self.assertEqual(p.major, "CS")
+        self.assertEqual(p.school, "Virginia Tech")
+        self.assertEqual(p.term, "Fall 2026")
+ 
+    async def test_updates_existing_profile(self):
+        _fake_db.upsert_profile(30, "MATH", "VT", "Spring 2026")
+        interaction = _make_interaction(user_id=30)
+        await bot_module.profile(
+            interaction, major="CS", school="Virginia Tech", term="Fall 2026"
+        )
+        self.assertEqual(_fake_db.get_profile(30).major, "CS")
+ 
+ 
+class TestWatchClass(unittest.IsolatedAsyncioTestCase):
+ 
+    def setUp(self):
+        _fake_db._watches.clear()
+ 
+    async def test_watchclass_adds_watch(self):
+        interaction = _make_interaction(user_id=40)
+        original = bot_module.safe_send_dm
+        bot_module.safe_send_dm = _AsyncSendMock(return_value=True)
+        await bot_module.watchclass(interaction, crn="12345")
+        bot_module.safe_send_dm = original
+ 
+        watches = [w for w in _fake_db._watches if w["crn"] == "12345"]
+        self.assertEqual(len(watches), 1)
+ 
+    async def test_unwatchclass_removes_watch(self):
+        _fake_db.add_watch(40, "12345")
+        interaction = _make_interaction(user_id=40)
+        await bot_module.unwatchclass(interaction, crn="12345")
+ 
+        watches = [w for w in _fake_db._watches if w["crn"] == "12345"]
+        self.assertEqual(len(watches), 0)
+ 
+ 
+class TestVTCatalogProviderTermYear(unittest.TestCase):
+    """_term_year is synchronous; skip gracefully if vt_catalog is absent."""
+ 
+    def _provider_or_skip(self):
+        try:
+            pyvt = sys.modules.setdefault("pyvt", types.ModuleType("pyvt"))
+            pyvt.Timetable = lambda: None
+            pyvt.TimetableError = Exception
+            for mod_name in ("src.providers", "src.providers.helpers"):
+                if mod_name not in sys.modules:
+                    m = types.ModuleType(mod_name)
+                    m.__path__ = []
+                    m.subject_codes_for_major = lambda major: [major]
+                    m.to_course_record_from_section = lambda *a, **kw: None
+                    sys.modules[mod_name] = m
+            from src.providers.vt_catalog import VTCatalogProvider
+            return VTCatalogProvider()
+        except Exception:
+            self.skipTest("vt_catalog provider not available")
+ 
+    def test_fall_term(self):
+        p = self._provider_or_skip()
+        self.assertEqual(p._term_year("Fall 2026"), "202609")
+ 
+    def test_spring_term(self):
+        p = self._provider_or_skip()
+        self.assertEqual(p._term_year("Spring 2026"), "202601")
+ 
+    def test_summer_i_term(self):
+        p = self._provider_or_skip()
+        self.assertEqual(p._term_year("Summer I 2026"), "202606")
+ 
+    def test_invalid_term_returns_none(self):
+        p = self._provider_or_skip()
+        self.assertIsNone(p._term_year("InvalidTerm"))
+ 
+    def test_preferred_year_overrides_label(self):
+        p = self._provider_or_skip()
+        p.preferred_term_year = "202701"
+        self.assertEqual(p._term_year("Fall 2026"), "202701")
+ 
+ 
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
