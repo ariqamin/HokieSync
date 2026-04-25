@@ -627,7 +627,7 @@ class TestFriends(unittest.IsolatedAsyncioTestCase):
         await bot_module.removefriend(interaction, user=_Member(2, "Bob"))
         self.assertNotIn(2, _fake_db.get_friends(1))
 
- class TestProfile(unittest.IsolatedAsyncioTestCase):
+class TestProfile(unittest.IsolatedAsyncioTestCase):
  
     def setUp(self):
         _fake_db._profiles.clear()
