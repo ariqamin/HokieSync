@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.config import Settings, load_settings
-from src.db import Database
+from src.core.config import Settings, load_settings
+from src.core.db import Database
 from src.providers.composite_provider import CompositeProvider
 from src.providers.grade_provider import GradeProvider
 from src.providers.mock_data import MockDataProvider

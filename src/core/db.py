@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from src.models import ClassEntry, GradeStat, ProfessorRating, Profile, SchedulePreferences, VALID_SCHEDULE_KEYS
+from src.core.models import ClassEntry, GradeStat, ProfessorRating, Profile, SchedulePreferences, VALID_SCHEDULE_KEYS
 
 
 class Database:
