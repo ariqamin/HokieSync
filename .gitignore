@@ -1,1 +1,16 @@
+__pycache__/
+*.py[cod]
+
 .env
+.venv/
+venv/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+data/*.db
+data/*.db-*
+data/imports/*.csv
+data/imports/*.json
+data/udc_probe/
