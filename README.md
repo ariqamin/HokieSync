@@ -190,9 +190,3 @@ Seat alerts use the live timetable provider when available. If the live provider
 - `/coursegrades`
 - `/watchclass`
 - `/unwatchclass`
-
-## What still depends on your environment
-
-This build includes the code for the live integrations, but live behavior still depends on the data sources being reachable from your machine and your `.env` being set correctly.
-
-For the Discord bot token, keep it out of the repo and only store it in your own `.env`.
