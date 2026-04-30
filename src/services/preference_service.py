@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import re
 
-from src.models import SchedulePreferences, VALID_RECOMMENDATION_MODES, WEEKDAY_NAMES, WEEKDAY_ORDER
-from src.utils.time_utils import normalize_days
+from src.core.models import SchedulePreferences, VALID_RECOMMENDATION_MODES, WEEKDAY_NAMES, WEEKDAY_ORDER
+from src.utils.time_utils import format_time, normalize_days
 
 
 DAY_ALIASES = {
@@ -307,11 +307,11 @@ class PreferenceService:
         notes: list[str] = []
         if preferred_start and preferred_end:
             label = "requires" if hard_time_window else "prefers"
-            notes.append(f"{label} classes between {preferred_start} and {preferred_end}")
+            notes.append(f"{label} classes between {format_time(preferred_start)} and {format_time(preferred_end)}")
         elif preferred_start:
-            notes.append(f"prefers classes starting after {preferred_start}")
+            notes.append(f"prefers classes starting after {format_time(preferred_start)}")
         elif preferred_end:
-            notes.append(f"prefers to be done by {preferred_end}")
+            notes.append(f"prefers to be done by {format_time(preferred_end)}")
         if avoid_days:
             names = ", ".join(WEEKDAY_NAMES[day] for day in avoid_days if day in WEEKDAY_NAMES)
             notes.append(f"avoids {names}")

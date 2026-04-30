@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.config import load_settings
-from src.db import Database
+from src.core.config import load_settings
+from src.core.db import Database
 from src.providers.grade_provider import GradeProvider
 
 

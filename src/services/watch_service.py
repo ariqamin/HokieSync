@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.db import Database
+from src.core.db import Database
 
 
 class WatchService:

@@ -1,36 +1,22 @@
 from __future__ import annotations
+
 import re
-from src.models import CourseRecord
 
-MAJOR_SUBJECT_MAP = {
-    "CS": ["CS", "CMDA", "CPE", "MATH", "STAT"],
-    "CPE": ["CPE", "CS", "ECE", "MATH"],
-    "ECE": ["ECE", "MATH", "PHYS", "CS"],
-    "CMDA": ["CMDA", "MATH", "STAT", "CS"],
-    "MATH": ["MATH", "STAT", "CS"],
-    "ENGR": ["ENGE", "MATH", "PHYS", "CS"],
-}
-
-SYSTEMS_KEYWORDS = {"system", "operating", "network", "architecture", "organization", "assembly"}
-SOFTWARE_KEYWORDS = {"software", "design", "engineering", "development", "testing", "project"}
-THEORY_KEYWORDS = {"theory", "algorithm", "automata", "proof", "logic", "formal"}
-MATH_KEYWORDS = {"math", "linear", "calculus", "probability", "statistics", "combinatorics"}
-AI_KEYWORDS = {"ai", "machine", "learning", "data", "intelligence"}
+from src.core.models import CourseRecord
 
 
-#used ai/chatgpt to help with regex
-def normalize_course_code(value: str):
+def normalize_course_code(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", value).upper()
 
 
-def subject_from_course_query(value: str):
+def subject_from_course_query(value: str) -> str:
     match = re.match(r"\s*([A-Za-z]{2,4})\s*[- ]?\s*\d{4}\b", value)
     if match is None:
         return ""
     return match.group(1).upper()
 
 
-def course_matches_query(course: CourseRecord, query: str):
+def course_matches_query(course: CourseRecord, query: str) -> bool:
     normalized_query = normalize_course_code(query)
     normalized_course = normalize_course_code(course.course_code)
     if normalized_query and normalized_query == normalized_course:
@@ -44,8 +30,17 @@ def course_matches_query(course: CourseRecord, query: str):
     return lowered_query in title or lowered_query == code_with_space
 
 
+MAJOR_SUBJECT_MAP = {
+    "CS": ["CS", "CMDA", "CPE", "MATH", "STAT"],
+    "CPE": ["CPE", "CS", "ECE", "MATH"],
+    "ECE": ["ECE", "MATH", "PHYS", "CS"],
+    "CMDA": ["CMDA", "MATH", "STAT", "CS"],
+    "MATH": ["MATH", "STAT", "CS"],
+    "ENGR": ["ENGE", "MATH", "PHYS", "CS"],
+}
 
-def subject_codes_for_major(major: str):
+
+def subject_codes_for_major(major: str) -> list[str]:
     tokens = re.findall(r"[A-Za-z]+", major.upper())
     subjects: list[str] = []
 
@@ -65,9 +60,15 @@ def subject_codes_for_major(major: str):
     return subjects[:6]
 
 
+SYSTEMS_KEYWORDS = {"system", "operating", "network", "architecture", "organization", "assembly"}
+SOFTWARE_KEYWORDS = {"software", "design", "engineering", "development", "testing", "project"}
+THEORY_KEYWORDS = {"theory", "algorithm", "automata", "proof", "logic", "formal"}
+MATH_KEYWORDS = {"math", "linear", "calculus", "probability", "statistics", "combinatorics"}
+AI_KEYWORDS = {"ai", "machine", "learning", "data", "intelligence"}
 
 
-def infer_requirement_tags(course_code: str, title: str):
+
+def infer_requirement_tags(course_code: str, title: str) -> list[str]:
     text = f"{course_code} {title}".lower()
     normalized_code = course_code.replace(" ", "").upper()
     subject_match = re.match(r"([A-Za-z]+)", normalized_code)
@@ -97,7 +98,8 @@ def infer_requirement_tags(course_code: str, title: str):
     return unique_tags
 
 
-def course_major_tags(course_code: str, fallback_subjects: list[str]):
+
+def course_major_tags(course_code: str, fallback_subjects: list[str]) -> list[str]:
     match = re.match(r"([A-Za-z]+)", course_code)
     if match is None:
         return fallback_subjects
@@ -111,14 +113,14 @@ def course_major_tags(course_code: str, fallback_subjects: list[str]):
 
 
 
-def normalize_professor_name(name: str):
+def normalize_professor_name(name: str) -> str:
     cleaned = name.replace("Professor", "").replace("Prof.", "").replace("Prof", "")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
 
 
-def to_course_record_from_section(section, school: str, term: str, major_subjects: list[str], source: str):
+def to_course_record_from_section(section, school: str, term: str, major_subjects: list[str], source: str) -> CourseRecord:
     course_code = str(getattr(section, "code", "")).replace(" ", "")
     title = str(getattr(section, "name", "")).strip()
     instructor = normalize_professor_name(str(getattr(section, "instructor", "TBA"))) or "TBA"
@@ -151,9 +153,8 @@ def to_course_record_from_section(section, school: str, term: str, major_subject
 
 
 
-def _course_number(course_code: str):
+def _course_number(course_code: str) -> int:
     match = re.search(r"(\d{4})", course_code)
     if match is None:
         return 9999
     return int(match.group(1))
-

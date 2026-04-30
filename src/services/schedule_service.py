@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.db import Database
-from src.models import ClassEntry
+from src.core.db import Database
+from src.core.models import ClassEntry
 from src.utils.time_utils import normalize_days, validate_time_range
 
 

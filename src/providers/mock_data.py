@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.models import CourseRecord
+from src.core.models import CourseRecord
 from src.providers.helpers import course_major_tags, course_matches_query, infer_requirement_tags
 
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from src.db import Database
-from src.models import WEEKDAY_ORDER
+from src.core.db import Database
+from src.core.models import WEEKDAY_ORDER
 from src.utils.time_utils import compress_ranges, normalize_days, parse_time
 
 

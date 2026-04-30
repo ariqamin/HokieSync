@@ -6,7 +6,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-from src.models import CourseRecord
+from src.core.models import CourseRecord
 from src.providers.helpers import (
     course_major_tags,
     course_matches_query,
@@ -161,7 +161,7 @@ class VTCatalogProvider:
         seen: set[str] = set()
         for row in soup.find_all("tr"):
             cells = [cell.get_text(" ", strip=True) for cell in row.find_all("td", recursive=False)]
-            if len(cells) < 13 or not cells[0].strip().isdigit():
+            if len(cells) < 12 or not cells[0].strip().isdigit():
                 continue
 
             crn = cells[0].strip()
@@ -174,9 +174,7 @@ class VTCatalogProvider:
             if not instructor or instructor.upper() == "N/A":
                 instructor = "TBA"
             days = normalize_days(cells[8])
-            start_time = self._normalize_time(cells[9])
-            end_time = self._normalize_time(cells[10])
-            location = cells[11].strip()
+            start_time, end_time, location = self._meeting_fields(cells)
             capacity = self._optional_int(cells[6])
 
             records.append(
@@ -244,6 +242,19 @@ class VTCatalogProvider:
         if meridiem == "AM" and hour == 12:
             hour = 0
         return f"{hour:02d}:{minute:02d}"
+
+    def _meeting_fields(self, cells: list[str]) -> tuple[str, str, str]:
+        if len(cells) >= 13:
+            return self._normalize_time(cells[9]), self._normalize_time(cells[10]), cells[11].strip()
+
+        start_time, end_time = self._normalize_time_range(cells[9])
+        return start_time, end_time, cells[10].strip()
+
+    def _normalize_time_range(self, value: str) -> tuple[str, str]:
+        parts = re.split(r"\s*-\s*", value.strip(), maxsplit=1)
+        if len(parts) != 2:
+            return "", ""
+        return self._normalize_time(parts[0]), self._normalize_time(parts[1])
 
     def _optional_int(self, value: str) -> int | None:
         try:

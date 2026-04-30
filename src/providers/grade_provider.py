@@ -8,8 +8,8 @@ from typing import Any
 
 import requests
 
-from src.db import Database
-from src.models import GradeStat
+from src.core.db import Database
+from src.core.models import GradeStat
 
 
 COURSE_CODE_ALIASES = [
@@ -186,4 +186,3 @@ class GradeProvider:
             return float(value)
         except ValueError:
             return None
-            

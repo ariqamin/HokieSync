@@ -3,8 +3,8 @@ from __future__ import annotations
 import statistics
 from typing import Iterable
 
-from src.models import ClassEntry, Recommendation, SchedulePlan, SchedulePreferences, WEEKDAY_NAMES
-from src.utils.time_utils import format_minutes, normalize_days
+from src.core.models import ClassEntry, Recommendation, SchedulePlan, SchedulePreferences, WEEKDAY_NAMES
+from src.utils.time_utils import format_minutes_normal, format_time, format_time_range, normalize_days
 
 
 def text_block(title: str, lines: Iterable[str]) -> str:
@@ -22,10 +22,7 @@ def format_schedule(owner_name: str, classes: list[ClassEntry], privacy: str) ->
     for entry in classes:
         course = entry.course_code[:12]
         title = (entry.course_title or "-")[:28]
-        if entry.start_time and entry.end_time:
-            time_span = f"{entry.start_time}-{entry.end_time}"
-        else:
-            time_span = "TBA"
+        time_span = format_time_range(entry.start_time, entry.end_time)
         location = (entry.location or "-")[:16]
         lines.append(f"{entry.crn:<8} {course:<12} {title:<28} {(entry.days or 'TBA'):<6} {time_span:<13} {location:<16}")
     return text_block(f"{owner_name}'s schedule", lines)
@@ -36,8 +33,8 @@ def format_preferences(preferences: SchedulePreferences | None) -> str:
         return text_block("Schedule preferences", ["No schedule preferences saved yet."])
 
     lines = [f"Raw description: {preferences.raw_text}", ""]
-    lines.append(f"Preferred start: {preferences.preferred_start or 'Not set'}")
-    lines.append(f"Preferred end: {preferences.preferred_end or 'Not set'}")
+    lines.append(f"Preferred start: {format_time(preferences.preferred_start) if preferences.preferred_start else 'Not set'}")
+    lines.append(f"Preferred end: {format_time(preferences.preferred_end) if preferences.preferred_end else 'Not set'}")
     lines.append(f"Time window is strict: {'yes' if preferences.hard_time_window else 'no'}")
     lines.append(f"Avoid early classes: {'yes' if preferences.avoid_early else 'no'}")
     lines.append(f"Avoid late classes: {'yes' if preferences.avoid_late else 'no'}")
@@ -122,7 +119,7 @@ def format_schedule_plans(profile_label: str, mode: str, plans: list[SchedulePla
 def _meeting_label(days: str, start_time: str, end_time: str) -> str:
     day_label = days or "TBA"
     if start_time and end_time:
-        return f"{day_label} {start_time}-{end_time}"
+        return f"{day_label} {format_time_range(start_time, end_time)}"
     return f"{day_label} TBA"
 
 
@@ -151,7 +148,7 @@ def format_free_time(title: str, windows: dict[str, list[tuple[int, int]]], excl
             lines.append("  None")
             continue
         for start, end in ranges:
-            lines.append(f"  {format_minutes(start)}-{format_minutes(end)}")
+            lines.append(f"  {format_minutes_normal(start)}-{format_minutes_normal(end)}")
         lines.append("")
 
     return text_block(title, lines)

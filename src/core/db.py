@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.models import ClassEntry, GradeStat, ProfessorRating, Profile, SchedulePreferences, VALID_SCHEDULE_KEYS
+from src.utils.term_utils import academic_terms_for, choose_next_term
 
 
 class Database:
@@ -306,8 +307,9 @@ class Database:
             return ""
         active = self._normalize_schedule_key(profile.active_schedule)
         if active == "next":
-            return profile.next_term or profile.term or profile.current_term
-        return profile.current_term or profile.term
+            next_kind = "off" if profile.next_term.strip().lower().startswith("summer") else "main"
+            return choose_next_term(next_kind)
+        return academic_terms_for().current
 
     def update_requirements(self, user_id: int, requirements_text: str):
         existing = self.get_profile(user_id)

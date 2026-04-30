@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.models import CourseRecord
+from src.core.models import CourseRecord
 
 
 class CompositeProvider:
@@ -26,8 +26,16 @@ class CompositeProvider:
         self.last_refresh = "OK"
         self.last_error = " | ".join(errors) if errors else "None"
 
-    async def get_course_by_crn(self, crn: str, school: str = "Virginia Tech", term: str = "", 
-                                *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True) -> CourseRecord | None:
+    async def get_course_by_crn(
+        self,
+        crn: str,
+        school: str = "Virginia Tech",
+        term: str = "",
+        *,
+        enrich: bool = True,
+        enrich_rmp: bool = True,
+        enrich_grades: bool = True,
+    ) -> CourseRecord | None:
         course: CourseRecord | None = None
 
         if self.catalog_provider is not None:
@@ -46,8 +54,16 @@ class CompositeProvider:
             await self._enrich_course(course, school, enable_rmp=enrich_rmp, enable_grades=enrich_grades)
         return course
 
-    async def list_courses_for_profile(self, major: str, school: str, term: str, 
-                                       *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True) -> list[CourseRecord]:
+    async def list_courses_for_profile(
+        self,
+        major: str,
+        school: str,
+        term: str,
+        *,
+        enrich: bool = True,
+        enrich_rmp: bool = True,
+        enrich_grades: bool = True,
+    ) -> list[CourseRecord]:
         courses: list[CourseRecord] = []
 
         if self.catalog_provider is not None:
@@ -61,13 +77,21 @@ class CompositeProvider:
                 await self._enrich_course(course, school, enable_rmp=enrich_rmp, enable_grades=enrich_grades)
         return courses
 
-    async def search_courses(self, query: str, school: str = "Virginia Tech", term: str = "", 
-                             *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True):
+    async def search_courses(
+        self,
+        query: str,
+        school: str = "Virginia Tech",
+        term: str = "",
+        *,
+        enrich: bool = True,
+        enrich_rmp: bool = True,
+        enrich_grades: bool = True,
+    ) -> list[CourseRecord]:
         courses: list[CourseRecord] = []
 
-        #ai/chatgpt help with fetching RMP info
         if self.catalog_provider is not None and hasattr(self.catalog_provider, "search_courses"):
             courses = await self.catalog_provider.search_courses(query, school=school, term=term)
+
         if not courses and self.mock_provider is not None and hasattr(self.mock_provider, "search_courses"):
             courses = await self.mock_provider.search_courses(query, school=school, term=term)
 
@@ -82,7 +106,7 @@ class CompositeProvider:
                 rating = await self.rmp_provider.get_rating(instructor)
                 if rating is not None:
                     return rating.avg_rating
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover - depends on live network
                 self.last_error = str(exc)
 
         if self.mock_provider is not None:
@@ -95,7 +119,7 @@ class CompositeProvider:
                 stat = await self.grade_provider.get_grade_stat(course_code, instructor)
                 if stat is not None:
                     return stat.gpa
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover - depends on live data
                 self.last_error = str(exc)
 
         if self.mock_provider is not None:
@@ -124,11 +148,11 @@ class CompositeProvider:
         if enable_rmp and course.rmp_rating is None:
             try:
                 course.rmp_rating = await self.get_rmp_rating(course.instructor, school)
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover - depends on live network
                 self.last_error = str(exc)
 
         if enable_grades and course.avg_gpa is None:
             try:
                 course.avg_gpa = await self.get_avg_gpa(course.course_code, course.instructor)
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover - depends on live data
                 self.last_error = str(exc)

@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import Protocol
 
-from src.db import Database
-from src.models import Recommendation, SchedulePlan, SchedulePreferences, VALID_RECOMMENDATION_MODES
-from src.utils.time_utils import normalize_days, parse_time
+from src.core.db import Database
+from src.core.models import Recommendation, SchedulePlan, SchedulePreferences, VALID_RECOMMENDATION_MODES
+from src.utils.time_utils import format_time_range, normalize_days, parse_time
 
 
 DEFAULT_RMP = 3.5
@@ -633,7 +633,7 @@ class RecommendationService:
         if preferences.hard_time_window and any(not self._within_window(course.start_time, course.end_time, preferences) for course in courses):
             if strict:
                 return None
-            misses.append(f"some classes outside {preferences.preferred_start}-{preferences.preferred_end}")
+            misses.append(f"some classes outside {format_time_range(preferences.preferred_start, preferences.preferred_end)}")
         if preferences.avoid_days and any(set(course.days).intersection(preferences.avoid_days) for course in courses):
             if strict:
                 return None
@@ -644,7 +644,7 @@ class RecommendationService:
         if preferences.min_rmp_rating and avg_rmp >= preferences.min_rmp_rating:
             notes.append(f"average RMP {avg_rmp:.1f} clears {preferences.min_rmp_rating:.1f}")
         if preferences.preferred_start and preferences.preferred_end and all(self._within_window(course.start_time, course.end_time, preferences) for course in courses):
-            notes.append(f"inside {preferences.preferred_start}-{preferences.preferred_end}")
+            notes.append(f"inside {format_time_range(preferences.preferred_start, preferences.preferred_end)}")
         if preferences.max_days and len(distinct_days) <= preferences.max_days:
             notes.append(f"{len(distinct_days)} day(s) on campus")
         if preferences.avoid_days and all(not set(course.days).intersection(preferences.avoid_days) for course in courses):
