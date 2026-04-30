@@ -26,7 +26,8 @@ class CompositeProvider:
         self.last_refresh = "OK"
         self.last_error = " | ".join(errors) if errors else "None"
 
-    async def get_course_by_crn(self, crn: str, school: str = "Virginia Tech", term: str = "") -> CourseRecord | None:
+    async def get_course_by_crn(self, crn: str, school: str = "Virginia Tech", term: str = "", 
+                                *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True) -> CourseRecord | None:
         course: CourseRecord | None = None
 
         if self.catalog_provider is not None:
@@ -41,10 +42,12 @@ class CompositeProvider:
         if course is None:
             return None
 
-        await self._enrich_course(course, school)
+        if enrich:
+            await self._enrich_course(course, school, enable_rmp=enrich_rmp, enable_grades=enrich_grades)
         return course
 
-    async def list_courses_for_profile(self, major: str, school: str, term: str) -> list[CourseRecord]:
+    async def list_courses_for_profile(self, major: str, school: str, term: str, 
+                                       *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True) -> list[CourseRecord]:
         courses: list[CourseRecord] = []
 
         if self.catalog_provider is not None:
@@ -53,15 +56,34 @@ class CompositeProvider:
         if not courses and self.mock_provider is not None:
             courses = await self.mock_provider.list_courses_for_profile(major, school, term)
 
-        for course in courses:
-            await self._enrich_course(course, school)
+        if enrich:
+            for course in courses:
+                await self._enrich_course(course, school, enable_rmp=enrich_rmp, enable_grades=enrich_grades)
+        return courses
+
+    async def search_courses(self, query: str, school: str = "Virginia Tech", term: str = "", 
+                             *, enrich: bool = True, enrich_rmp: bool = True, enrich_grades: bool = True):
+        courses: list[CourseRecord] = []
+
+        #ai/chatgpt help with fetching RMP info
+        if self.catalog_provider is not None and hasattr(self.catalog_provider, "search_courses"):
+            courses = await self.catalog_provider.search_courses(query, school=school, term=term)
+        if not courses and self.mock_provider is not None and hasattr(self.mock_provider, "search_courses"):
+            courses = await self.mock_provider.search_courses(query, school=school, term=term)
+
+        if enrich:
+            for course in courses:
+                await self._enrich_course(course, school, enable_rmp=enrich_rmp, enable_grades=enrich_grades)
         return courses
 
     async def get_rmp_rating(self, instructor: str, school: str) -> float | None:
         if self.rmp_provider is not None:
-            rating = await self.rmp_provider.get_rating(instructor)
-            if rating is not None:
-                return rating.avg_rating
+            try:
+                rating = await self.rmp_provider.get_rating(instructor)
+                if rating is not None:
+                    return rating.avg_rating
+            except Exception as exc:
+                self.last_error = str(exc)
 
         if self.mock_provider is not None:
             return await self.mock_provider.get_rmp_rating(instructor, school)
@@ -69,9 +91,12 @@ class CompositeProvider:
 
     async def get_avg_gpa(self, course_code: str, instructor: str = "") -> float | None:
         if self.grade_provider is not None:
-            stat = await self.grade_provider.get_grade_stat(course_code, instructor)
-            if stat is not None:
-                return stat.gpa
+            try:
+                stat = await self.grade_provider.get_grade_stat(course_code, instructor)
+                if stat is not None:
+                    return stat.gpa
+            except Exception as exc:
+                self.last_error = str(exc)
 
         if self.mock_provider is not None:
             return await self.mock_provider.get_avg_gpa(course_code, instructor)
@@ -95,10 +120,15 @@ class CompositeProvider:
             return False
         return await self.mock_provider.set_open_seats(crn, seats)
 
-    async def _enrich_course(self, course: CourseRecord, school: str):
-        if course.rmp_rating is None:
-            course.rmp_rating = await self.get_rmp_rating(course.instructor, school)
+    async def _enrich_course(self, course: CourseRecord, school: str, *, enable_rmp: bool = True, enable_grades: bool = True):
+        if enable_rmp and course.rmp_rating is None:
+            try:
+                course.rmp_rating = await self.get_rmp_rating(course.instructor, school)
+            except Exception as exc:
+                self.last_error = str(exc)
 
-        if course.avg_gpa is None:
-            course.avg_gpa = await self.get_avg_gpa(course.course_code, course.instructor)
-            
+        if enable_grades and course.avg_gpa is None:
+            try:
+                course.avg_gpa = await self.get_avg_gpa(course.course_code, course.instructor)
+            except Exception as exc:
+                self.last_error = str(exc)

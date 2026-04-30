@@ -25,10 +25,10 @@ INSTRUCTOR_ALIASES = ["instructor", "faculty", "professor"]
 ACADEMIC_YEAR_ALIASES = ["academic year", "academic_year", "year"]
 TERM_ALIASES = ["term", "semester"]
 GPA_ALIASES = ["gpa", "avg gpa", "average gpa"]
-A_ALIASES = ["a(%)", "a %", "a_pct", "a"]
-A_MINUS_ALIASES = ["a-(%)", "a- %", "a_minus_pct", "a-"]
-B_PLUS_ALIASES = ["b+(%)", "b+ %", "b_plus_pct", "b+"]
-B_ALIASES = ["b(%)", "b %", "b_pct", "b"]
+A_ALIASES = ["a(%)", "a %", "a_pct", "a", "grade a", "grade_a"]
+A_MINUS_ALIASES = ["a-(%)", "a- %", "a_minus_pct", "a-", "grade a negative", "grade_a_negative"]
+B_PLUS_ALIASES = ["b+(%)", "b+ %", "b_plus_pct", "b+", "grade b positive", "grade_b_positive"]
+B_ALIASES = ["b(%)", "b %", "b_pct", "b", "grade b", "grade_b"]
 
 
 class GradeProvider:

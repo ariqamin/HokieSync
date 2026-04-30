@@ -18,6 +18,32 @@ MATH_KEYWORDS = {"math", "linear", "calculus", "probability", "statistics", "com
 AI_KEYWORDS = {"ai", "machine", "learning", "data", "intelligence"}
 
 
+#used ai/chatgpt to help with regex
+def normalize_course_code(value: str):
+    return re.sub(r"[^A-Za-z0-9]", "", value).upper()
+
+
+def subject_from_course_query(value: str):
+    match = re.match(r"\s*([A-Za-z]{2,4})\s*[- ]?\s*\d{4}\b", value)
+    if match is None:
+        return ""
+    return match.group(1).upper()
+
+
+def course_matches_query(course: CourseRecord, query: str):
+    normalized_query = normalize_course_code(query)
+    normalized_course = normalize_course_code(course.course_code)
+    if normalized_query and normalized_query == normalized_course:
+        return True
+
+    lowered_query = " ".join(query.lower().split())
+    if not lowered_query:
+        return False
+    title = " ".join(course.title.lower().split())
+    code_with_space = re.sub(r"([A-Za-z]+)(\d+)", r"\1 \2", course.course_code).lower()
+    return lowered_query in title or lowered_query == code_with_space
+
+
 
 def subject_codes_for_major(major: str):
     tokens = re.findall(r"[A-Za-z]+", major.upper())
@@ -43,7 +69,11 @@ def subject_codes_for_major(major: str):
 
 def infer_requirement_tags(course_code: str, title: str):
     text = f"{course_code} {title}".lower()
-    tags = ["elective"]
+    normalized_code = course_code.replace(" ", "").upper()
+    subject_match = re.match(r"([A-Za-z]+)", normalized_code)
+    tags = ["elective", normalized_code.lower()]
+    if subject_match is not None:
+        tags.append(subject_match.group(1).lower())
 
     if any(word in text for word in SYSTEMS_KEYWORDS):
         tags.append("systems")
